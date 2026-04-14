@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block page_title %}📊 Relatórios{% endblock %}
+
+{% block content %}
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <form method="get" style="display:flex;gap:8px;align-items:center;">
+      <select name="mes" class="filter-select" onchange="this.form.submit()">
+        {% for i in range(1,13) %}
+          <option value="{{ i }}" {% if i == mes %}selected{% endif %}>{{ meses_pt[i] }}</option>
+        {% endfor %}
+      </select>
+      <select name="ano" class="filter-select" onchange="this.form.submit()">
+        {% for a in range(2022, 2028) %}
+          <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="toolbar-right">
+    <a href="/relatorios/exportar?mes={{ mes }}&ano={{ ano }}&formato=csv" class="btn btn-ghost btn-sm">📥 CSV</a>
+    <a href="/relatorios/exportar?mes={{ mes }}&ano={{ ano }}&formato=pdf" class="btn btn-ghost btn-sm">📄 PDF</a>
+  </div>
+</div>
+
+<!-- Cards resumo do mês -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon">📈</div>
+    <div class="stat-label">Receitas — {{ resumo.nome_mes }}</div>
+    <div class="stat-value green">R$ {{ "%.2f"|format(resumo.receita|float) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">📉</div>
+    <div class="stat-label">Despesas — {{ resumo.nome_mes }}</div>
+    <div class="stat-value red">R$ {{ "%.2f"|format(resumo.despesa|float) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⚖️</div>
+    <div class="stat-label">Saldo do Mês</div>
+    <div class="stat-value {% if resumo.saldo|float >= 0 %}green{% else %}red{% endif %}">
+      {% if resumo.saldo|float >= 0 %}+{% endif %}R$ {{ "%.2f"|format(resumo.saldo|float) }}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">📅</div>
+    <div class="stat-label">Total Anual — {{ ano }}</div>
+    <div class="stat-value blue">{{ resumo.total_transacoes }} transações</div>
+    <div class="stat-sub">neste mês</div>
+  </div>
+</div>
+
+<!-- Gráficos -->
+<div class="grid-2 mt-4">
+  <div class="card">
+    <div class="section-title" style="margin-bottom:16px;">📊 Histórico Anual — {{ ano }}</div>
+    <div class="chart-container" style="height:280px;">
+      <canvas id="chartAnual"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="margin-bottom:16px;">🍕 Gastos por Categoria — {{ resumo.nome_mes }}</div>
+    {% if cats_pizza %}
+    <div class="chart-container" style="height:200px; margin-bottom:16px;">
+      <canvas id="chartPizza"></canvas>
+    </div>
+    <div class="cat-list">
+      {% set total = cats_pizza|sum(attribute='valor') %}
+      {% for cat in cats_pizza %}
+      {% set pct = (cat.valor / total * 100) if total > 0 else 0 %}
+      <div class="cat-item">
+        <div class="cat-row">
+          <span class="cat-name">{{ cat.nome }}</span>
+          <span class="cat-val">R$ {{ "%.2f"|format(cat.valor) }} <span class="text-muted">({{ "%.0f"|format(pct) }}%)</span></span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill fill-red" style="width:{{ pct|round(1) }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><div class="empty-icon">📭</div>Sem dados de despesa neste mês.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tabela anual -->
+<div class="card mt-4">
+  <div class="section-title" style="margin-bottom:16px;">📆 Resumo Mês a Mês — {{ ano }}</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Mês</th>
+          <th style="text-align:right">Receitas</th>
+          <th style="text-align:right">Despesas</th>
+          <th style="text-align:right">Saldo</th>
+          <th>Balanço</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set total_r = historico.total_receita|float %}
+        {% for m in range(1, 13) %}
+        {% set r = historico.meses[m].receita|float %}
+        {% set d = historico.meses[m].despesa|float %}
+        {% set s = r - d %}
+        {% set pct = (r / (total_r / 12) * 100) if total_r > 0 else 0 %}
+        <tr>
+          <td>{{ meses_pt[m] }}</td>
+          <td style="text-align:right"><span class="amount positive">R$ {{ "%.2f"|format(r) }}</span></td>
+          <td style="text-align:right"><span class="amount negative">R$ {{ "%.2f"|format(d) }}</span></td>
+          <td style="text-align:right">
+            <span class="amount {% if s >= 0 %}positive{% else %}negative{% endif %}">
+              {% if s >= 0 %}+{% endif %}R$ {{ "%.2f"|format(s) }}
+            </span>
+          </td>
+          <td style="width:180px;">
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill {% if s >= 0 %}fill-green{% else %}fill-red{% endif %}"
+                   style="width:{{ [pct, 100]|min|round(1) }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        <tr style="border-top:2px solid var(--border-light);font-weight:700;">
+          <td>Total</td>
+          <td style="text-align:right"><span class="amount positive">R$ {{ "%.2f"|format(historico.total_receita|float) }}</span></td>
+          <td style="text-align:right"><span class="amount negative">R$ {{ "%.2f"|format(historico.total_despesa|float) }}</span></td>
+          <td style="text-align:right">
+            {% set saldo_a = historico.saldo_anual|float %}
+            <span class="amount {% if saldo_a >= 0 %}positive{% else %}negative{% endif %}">
+              {% if saldo_a >= 0 %}+{% endif %}R$ {{ "%.2f"|format(saldo_a) }}
+            </span>
+          </td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const labels   = {{ labels_anual | tojson }};
+const receitas = {{ receitas_anual | tojson }};
+const despesas = {{ despesas_anual | tojson }};
+const catNomes = {{ cats_pizza | map(attribute='nome') | list | tojson }};
+const catVals  = {{ cats_pizza | map(attribute='valor') | list | tojson }};
+
+new Chart(document.getElementById('chartAnual'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label:'Receitas', data:receitas, backgroundColor:'#00d68f55', borderColor:'#00d68f', borderWidth:1.5, borderRadius:4 },
+      { label:'Despesas', data:despesas, backgroundColor:'#ff6b6b55', borderColor:'#ff6b6b', borderWidth:1.5, borderRadius:4 },
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11} } } },
+    scales:{
+      x:{ ticks:{color:'#94a3b8', font:{size:10}}, grid:{color:'#2d3250'} },
+      y:{ ticks:{color:'#94a3b8', font:{size:10}, callback: v=>'R$'+v.toLocaleString('pt-BR')}, grid:{color:'#2d3250'} }
+    }
+  }
+});
+
+if (catVals.length > 0) {
+  const cores = ['#ff6b6b','#ffd166','#74b9ff','#a29bfe','#fd79a8','#00d68f','#55efc4','#fdcb6e'];
+  new Chart(document.getElementById('chartPizza'), {
+    type: 'doughnut',
+    data:{ labels:catNomes, datasets:[{ data:catVals, backgroundColor:cores, borderWidth:0, hoverOffset:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'60%', plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:10}, boxWidth:12 } } } }
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block page_title %}🏠 Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- ── Filtro de mês ──────────────────────────────────────── -->
+<div class="toolbar">
+  <div class="toolbar-left">
+    <form method="get" style="display:flex; gap:8px; align-items:center;">
+      <select name="mes" class="filter-select" onchange="this.form.submit()">
+        {% for i in range(1,13) %}
+          <option value="{{ i }}" {% if i == mes %}selected{% endif %}>{{ meses_pt[i] }}</option>
+        {% endfor %}
+      </select>
+      <select name="ano" class="filter-select" onchange="this.form.submit()">
+        {% for a in range(hoje.year - 3, hoje.year + 2) %}
+          <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <button class="btn btn-primary" onclick="openModal('modalTransacao')">＋ Nova Transação</button>
+</div>
+
+<!-- ── Cards de resumo ───────────────────────────────────── -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon">💰</div>
+    <div class="stat-label">Saldo Total</div>
+    <div class="stat-value {% if saldo_total >= 0 %}green{% else %}red{% endif %}">
+      R$ {{ "%.2f"|format(saldo_total)|replace(".", ",")|replace(",", ".", 1) }}
+    </div>
+    <div class="stat-sub">Todas as contas consolidadas</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon">📈</div>
+    <div class="stat-label">Receitas — {{ resumo.nome_mes }}</div>
+    <div class="stat-value green">R$ {{ "%.2f"|format(resumo.receita|float) }}</div>
+    <div class="stat-sub">{{ resumo.total_transacoes }} transações no mês</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon">📉</div>
+    <div class="stat-label">Despesas — {{ resumo.nome_mes }}</div>
+    <div class="stat-value red">R$ {{ "%.2f"|format(resumo.despesa|float) }}</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-icon">⚖️</div>
+    <div class="stat-label">Saldo do Mês</div>
+    <div class="stat-value {% if resumo.saldo|float >= 0 %}green{% else %}red{% endif %}">
+      {% if resumo.saldo|float >= 0 %}+{% endif %}R$ {{ "%.2f"|format(resumo.saldo|float) }}
+    </div>
+  </div>
+</div>
+
+<!-- ── Alertas ───────────────────────────────────────────── -->
+{% if alertas %}
+<div class="card mb-4 mt-4">
+  <div class="card-title">🔔 Alertas de Metas</div>
+  <div class="alert-list">
+    {% for alerta in alertas %}
+      <div class="alert-item {% if '🚨' in alerta %}alert-danger{% elif '✅' in alerta %}alert-success{% else %}alert-warning{% endif %}">
+        {{ alerta }}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Linha: Gráfico barras + Contas ───────────────────── -->
+<div class="grid-2 mt-4">
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">📊 Histórico Anual — {{ ano }}</div>
+    </div>
+    <div class="chart-container" style="height:240px;">
+      <canvas id="chartAnual"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">🏦 Contas</div>
+    </div>
+    <div class="conta-list">
+      {% for c in contas %}
+      <div class="conta-item">
+        <div class="conta-info">
+          <span class="conta-icon">{{ c.icone }}</span>
+          <div>
+            <div class="conta-name">{{ c.nome }}</div>
+            <div class="conta-tipo">{{ c.tipo|capitalize }}</div>
+          </div>
+        </div>
+        <div class="amount {% if c.saldo_atual >= 0 %}positive{% else %}negative{% endif %}">
+          R$ {{ "%.2f"|format(c.saldo_atual) }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Linha: Transações + Categorias ───────────────────── -->
+<div class="grid-3 mt-4">
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">🕐 Transações Recentes</div>
+      <a href="{{ url_for('transacoes') }}" class="btn btn-ghost btn-sm">Ver todas →</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th style="text-align:right">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in transacoes %}
+          <tr>
+            <td class="text-muted">{{ t.data }}</td>
+            <td>{{ t.descricao }}</td>
+            <td class="text-muted">{{ t.categoria }}</td>
+            <td style="text-align:right">
+              <span class="amount {% if t.tipo == 'receita' %}positive{% else %}negative{% endif %}">
+                {% if t.tipo == 'receita' %}+{% else %}-{% endif %}R$ {{ "%.2f"|format(t.valor) }}
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="empty-state">Nenhuma transação</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <div class="section-title">💸 Top Gastos</div>
+    </div>
+    {% if cats_pizza %}
+    <div class="chart-container" style="height:180px; margin-bottom:16px;">
+      <canvas id="chartPizza"></canvas>
+    </div>
+    <div class="cat-list">
+      {% for cat in cats_pizza[:5] %}
+      <div class="cat-item">
+        <div class="cat-row">
+          <span class="cat-name">{{ cat.nome }}</span>
+          <span class="cat-val">R$ {{ "%.2f"|format(cat.valor) }}</span>
+        </div>
+        {% set total = cats_pizza|sum(attribute='valor') %}
+        {% set pct = (cat.valor / total * 100) if total > 0 else 0 %}
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill {% if pct > 60 %}fill-red{% elif pct > 30 %}fill-yellow{% else %}fill-green{% endif %}"
+               style="width:{{ pct|round(1) }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state"><div class="empty-icon">📭</div>Sem despesas no mês</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Modal: Nova Transação ─────────────────────────────── -->
+<div class="modal" id="modalTransacao">
+  <div class="modal-header">
+    <div class="modal-title">📝 Nova Transação</div>
+    <button class="modal-close" onclick="closeAllModals()">✕</button>
+  </div>
+  <form method="post" action="{{ url_for('nova_transacao') }}">
+    <input type="hidden" name="mes" value="{{ mes }}">
+    <input type="hidden" name="ano" value="{{ ano }}">
+    <div class="form-grid">
+      <div class="input-group full-width">
+        <label>Tipo</label>
+        <select name="tipo" id="tipoSelectDash" required onchange="filtrarCategoriasDash()">
+          <option value="receita">💹 Receita</option>
+          <option value="despesa">💸 Despesa</option>
+        </select>
+      </div>
+      <div class="input-group full-width">
+        <label>Descrição</label>
+        <input type="text" name="descricao" placeholder="Ex: Supermercado" required />
+      </div>
+      <div class="input-group">
+        <label>Valor (R$)</label>
+        <input type="number" name="valor" step="0.01" min="0.01" placeholder="0,00" required />
+      </div>
+      <div class="input-group">
+        <label>Data</label>
+        <input type="date" name="data" value="{{ hoje }}" required />
+      </div>
+      <div class="input-group">
+        <label>Conta</label>
+        <select name="conta_id" required>
+          {% for c in contas %}
+          <option value="{{ c.id }}">{{ c.icone }} {{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Categoria</label>
+        <select name="categoria_id" id="catSelectDash">
+          <option value="">— Sem categoria</option>
+          {% for c in categorias %}
+          <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.icone }} {{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="input-group full-width">
+        <label>Observação (opcional)</label>
+        <input type="text" name="observacao" placeholder="Opcional" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeAllModals()">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrarCategoriasDash() {
+  const tipo = document.getElementById('tipoSelectDash').value;
+  const opts = document.querySelectorAll('#catSelectDash option[data-tipo]');
+  opts.forEach(o => o.style.display = (o.dataset.tipo === tipo) ? '' : 'none');
+  document.getElementById('catSelectDash').value = '';
+}
+filtrarCategoriasDash();
+
+const labelsAnual = {{ labels_anual | tojson }};
+const receitas    = {{ receitas_anual | tojson }};
+const despesas    = {{ despesas_anual | tojson }};
+const catNomes    = {{ cats_pizza | map(attribute='nome') | list | tojson }};
+const catVals     = {{ cats_pizza | map(attribute='valor') | list | tojson }};
+
+// Gráfico anual de barras
+new Chart(document.getElementById('chartAnual'), {
+  type: 'bar',
+  data: {
+    labels: labelsAnual,
+    datasets: [
+      { label: 'Receitas', data: receitas, backgroundColor: '#00d68f55', borderColor: '#00d68f', borderWidth: 1.5, borderRadius: 4 },
+      { label: 'Despesas', data: despesas, backgroundColor: '#ff6b6b55', borderColor: '#ff6b6b', borderWidth: 1.5, borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+    scales: {
+      x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2d3250' } },
+      y: { ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => 'R$' + v.toLocaleString('pt-BR') }, grid: { color: '#2d3250' } }
+    }
+  }
+});
+
+// Gráfico pizza
+if (catVals.length > 0) {
+  const cores = ['#00d68f','#ff6b6b','#ffd166','#74b9ff','#a29bfe','#fd79a8','#55efc4','#fdcb6e'];
+  new Chart(document.getElementById('chartPizza'), {
+    type: 'doughnut',
+    data: { labels: catNomes, datasets: [{ data: catVals, backgroundColor: cores, borderWidth: 0, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+</script>
+{% endblock %}

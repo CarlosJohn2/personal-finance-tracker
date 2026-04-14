@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block page_title %}📝 Transações{% endblock %}
+
+{% block content %}
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <form method="get" style="display:flex;gap:8px;align-items:center;">
+      <select name="mes" class="filter-select" onchange="this.form.submit()">
+        {% for i in range(1,13) %}
+          <option value="{{ i }}" {% if i == mes %}selected{% endif %}>{{ meses_pt[i] }}</option>
+        {% endfor %}
+      </select>
+      <select name="ano" class="filter-select" onchange="this.form.submit()">
+        {% for a in range(2022, 2028) %}
+          <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <span class="text-muted">{{ transacoes|length }} transação(ões)</span>
+  </div>
+  <button class="btn btn-primary" onclick="openModal('modalNovaTransacao')">＋ Nova Transação</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Data</th>
+          <th>Descrição</th>
+          <th>Categoria</th>
+          <th>Conta</th>
+          <th>Tipo</th>
+          <th style="text-align:right">Valor</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transacoes %}
+        <tr>
+          <td class="text-muted">{{ t.id }}</td>
+          <td class="text-muted">{{ t.data }}</td>
+          <td><strong>{{ t.descricao }}</strong>{% if t.observacao %}<br><span class="text-muted">{{ t.observacao }}</span>{% endif %}</td>
+          <td class="text-muted">{{ t.categoria }}</td>
+          <td class="text-muted">{{ t.conta }}</td>
+          <td>
+            <span class="badge {% if t.tipo == 'receita' %}badge-green{% else %}badge-red{% endif %}">
+              {% if t.tipo == 'receita' %}▲ Receita{% else %}▼ Despesa{% endif %}
+            </span>
+          </td>
+          <td style="text-align:right">
+            <span class="amount {% if t.tipo == 'receita' %}positive{% else %}negative{% endif %}">
+              {% if t.tipo == 'receita' %}+{% else %}-{% endif %}R$ {{ "%.2f"|format(t.valor) }}
+            </span>
+          </td>
+          <td>
+            <form method="post" action="/transacoes/{{ t.id }}/deletar" onsubmit="return confirm('Remover esta transação?')">
+              <button type="submit" class="btn btn-danger btn-sm">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state">
+              <div class="empty-icon">📭</div>
+              Nenhuma transação em {{ meses_pt[mes] }}/{{ ano }}.
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Nova Transação -->
+<div class="modal" id="modalNovaTransacao">
+  <div class="modal-header">
+    <div class="modal-title">📝 Nova Transação</div>
+    <button class="modal-close" onclick="closeAllModals()">✕</button>
+  </div>
+  <form method="post" action="{{ url_for('nova_transacao') }}">
+    <input type="hidden" name="mes" value="{{ mes }}">
+    <input type="hidden" name="ano" value="{{ ano }}">
+    <div class="form-grid">
+      <div class="input-group">
+        <label>Tipo *</label>
+        <select name="tipo" id="tipoSelect" required onchange="filtrarCategorias()">
+          <option value="receita">💹 Receita</option>
+          <option value="despesa">💸 Despesa</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Data *</label>
+        <input type="date" name="data" id="dataInput" required />
+      </div>
+      <div class="input-group full-width">
+        <label>Descrição *</label>
+        <input type="text" name="descricao" placeholder="Ex: Supermercado Extra" required />
+      </div>
+      <div class="input-group">
+        <label>Valor (R$) *</label>
+        <input type="number" name="valor" step="0.01" min="0.01" placeholder="0.00" required />
+      </div>
+      <div class="input-group">
+        <label>Conta *</label>
+        <select name="conta_id" required>
+          {% for c in contas %}
+          <option value="{{ c.id }}">{{ c.icone }} {{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="input-group full-width">
+        <label>Categoria</label>
+        <select name="categoria_id" id="catSelect">
+          <option value="">— Sem categoria</option>
+          {% for c in categorias %}
+          <option value="{{ c.id }}" data-tipo="{{ c.tipo }}">{{ c.icone }} {{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="input-group full-width">
+        <label>Observação</label>
+        <input type="text" name="observacao" placeholder="Opcional" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeAllModals()">Cancelar</button>
+      <button type="submit" class="btn btn-primary">💾 Salvar</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Preenche data atual
+document.getElementById('dataInput').valueAsDate = new Date();
+
+function filtrarCategorias() {
+  const tipo = document.getElementById('tipoSelect').value;
+  const opts = document.querySelectorAll('#catSelect option[data-tipo]');
+  opts.forEach(o => o.style.display = (o.dataset.tipo === tipo) ? '' : 'none');
+  document.getElementById('catSelect').value = '';
+}
+filtrarCategorias();
+</script>
+{% endblock %}

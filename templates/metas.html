@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block page_title %}🎯 Metas Financeiras{% endblock %}
+
+{% block content %}
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <span class="text-muted">{{ metas|selectattr('ativa')|list|length }} ativa(s)</span>
+  </div>
+  <button class="btn btn-primary" onclick="openModal('modalNovaMeta')">＋ Nova Meta</button>
+</div>
+
+{% if alertas %}
+<div class="card mb-4">
+  <div class="card-title">🔔 Alertas</div>
+  <div class="alert-list">
+    {% for alerta in alertas %}
+    <div class="alert-item {% if '🚨' in alerta %}alert-danger{% elif '✅' in alerta %}alert-success{% else %}alert-warning{% endif %}">
+      {{ alerta }}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="meta-grid">
+  {% for m in metas %}
+  <div class="meta-card {% if m.concluida %}concluida{% endif %} {% if not m.ativa %}inativa{% endif %}">
+    <div>
+      <div class="meta-name">{{ m.nome }}</div>
+      {% if m.prazo %}<div class="text-muted" style="font-size:.78rem;margin-top:3px;">📅 Prazo: {{ m.prazo }}</div>{% endif %}
+    </div>
+
+    <div>
+      {% set pct = m.percentual %}
+      <div class="progress-wrap" style="margin-bottom:6px;">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill {% if pct >= 100 %}fill-green{% elif pct >= 60 %}fill-yellow{% else %}fill-red{% endif %}"
+               style="width:{{ [pct, 100]|min }}%"></div>
+        </div>
+        <span class="progress-pct">{{ pct }}%</span>
+      </div>
+      <div class="meta-values">
+        <span>Atual: <strong>R$ {{ "%.2f"|format(m.valor_atual) }}</strong></span>
+        <span>Alvo: <strong>R$ {{ "%.2f"|format(m.valor_alvo) }}</strong></span>
+      </div>
+    </div>
+
+    <div style="font-size:.82rem;color:var(--text-secondary);">
+      Restante: <span style="color:var(--yellow);font-weight:600;">R$ {{ "%.2f"|format(m.restante) }}</span>
+    </div>
+
+    {% if m.concluida %}
+      <span class="badge badge-green">✅ Concluída!</span>
+    {% elif not m.ativa %}
+      <span class="badge" style="background:#2d3250;color:#94a3b8;">Encerrada</span>
+    {% else %}
+    <div class="meta-actions">
+      <button class="btn btn-primary btn-sm" onclick="openDeposito({{ m.id }}, '{{ m.nome }}')">💰 Aportar</button>
+      <form method="post" action="/metas/{{ m.id }}/encerrar" onsubmit="return confirm('Encerrar a meta \'{{ m.nome }}\'?')" style="display:inline;">
+        <button type="submit" class="btn btn-ghost btn-sm">Encerrar</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="grid-column:1/-1">
+    <div class="empty-icon">🎯</div>
+    Nenhuma meta cadastrada ainda.
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Modal: Nova Meta -->
+<div class="modal" id="modalNovaMeta">
+  <div class="modal-header">
+    <div class="modal-title">🎯 Nova Meta</div>
+    <button class="modal-close" onclick="closeAllModals()">✕</button>
+  </div>
+  <form method="post" action="{{ url_for('nova_meta') }}">
+    <div class="form-grid">
+      <div class="input-group full-width">
+        <label>Nome da Meta *</label>
+        <input type="text" name="nome" placeholder="Ex: Viagem para Europa" required />
+      </div>
+      <div class="input-group">
+        <label>Valor Alvo (R$) *</label>
+        <input type="number" name="valor_alvo" step="0.01" min="0.01" placeholder="0.00" required />
+      </div>
+      <div class="input-group">
+        <label>Prazo (opcional)</label>
+        <input type="date" name="data_limite" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeAllModals()">Cancelar</button>
+      <button type="submit" class="btn btn-primary">💾 Criar Meta</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal: Depositar -->
+<div class="modal" id="modalDeposito">
+  <div class="modal-header">
+    <div class="modal-title">💰 Registrar Aporte</div>
+    <button class="modal-close" onclick="closeAllModals()">✕</button>
+  </div>
+  <form method="post" id="formDeposito">
+    <div class="form-grid">
+      <div class="input-group full-width">
+        <label id="labelDeposito">Meta</label>
+        <input type="number" name="valor" step="0.01" min="0.01" placeholder="Valor do aporte (R$)" required />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeAllModals()">Cancelar</button>
+      <button type="submit" class="btn btn-primary">💾 Confirmar</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openDeposito(id, nome) {
+  document.getElementById('formDeposito').action = '/metas/' + id + '/depositar';
+  document.getElementById('labelDeposito').textContent = 'Aporte para: ' + nome;
+  openModal('modalDeposito');
+}
+</script>
+{% endblock %}
