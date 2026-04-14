@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "personal-finance-tracker"
+version = "1.0.0"
+description = "Sistema CLI de controle financeiro pessoal com MySQL e Rich"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Personal Finance Tracker" }]
+keywords = ["finance", "cli", "mysql", "python", "rich"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial",
+]
+dependencies = [
+    "typer==0.12.3",
+    "rich==13.7.1",
+    "sqlalchemy==2.0.30",
+    "alembic==1.13.1",
+    "mysql-connector-python==8.3.0",
+    "python-dotenv==1.0.1",
+    "matplotlib==3.8.4",
+    "reportlab==4.2.0",
+    "questionary==2.0.1",
+    "numpy==1.26.4",
+]
+
+[project.scripts]
+financa = "src.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/cli/*", "*/migrations/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.black]
+line-length = 92
+target-version = ["py311"]
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 92
+target-version = "py311"

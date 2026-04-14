@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+  # ── MySQL ──────────────────────────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: finance_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: personal_finance
+      MYSQL_USER: financa
+      MYSQL_PASSWORD: financa123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "financa", "-pfinanca123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Aplicação CLI ──────────────────────────────────────────────────────────
+  app:
+    build: .
+    container_name: finance_app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://financa:financa123@db:3306/personal_finance
+      ECHO_SQL: "false"
+    volumes:
+      - ./exports:/app/exports
+      - ./charts:/app/charts
+    stdin_open: true
+    tty: true
+    command: ["dashboard"]
+
+  # ── Migrations (roda e encerra) ────────────────────────────────────────────
+  migrate:
+    build: .
+    container_name: finance_migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://financa:financa123@db:3306/personal_finance
+    entrypoint: ["alembic", "upgrade", "head"]
+    profiles: ["migrate"]
+
+  # ── Seed (roda e encerra) ──────────────────────────────────────────────────
+  seed:
+    build: .
+    container_name: finance_seed
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://financa:financa123@db:3306/personal_finance
+    entrypoint: ["python", "scripts/seed.py"]
+    profiles: ["seed"]
+
+volumes:
+  mysql_data:
+    name: finance_mysql_data
